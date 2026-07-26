@@ -1,0 +1,35 @@
+{
+  "realm": "cloud",
+  "enabled": true,
+  "registrationAllowed": false,
+  "roles": {
+    "realm": [
+      {"name": "platform-admin"},
+      {"name": "tenant-admin"},
+      {"name": "tenant-user"}
+    ]
+  },
+  "clients": [
+    {
+      "clientId": "cloud-portal-web",
+      "publicClient": true,
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": false,
+      "redirectUris": ["http://localhost:3000/*"],
+      "webOrigins": ["http://localhost:3000"]
+    },
+    {
+      "clientId": "cloud-portal-api",
+      "bearerOnly": true
+    }
+  ],
+  "users": [
+    {
+      "username": "demo-admin",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [{"type": "password", "value": "ChangeMe-Immediately-123!", "temporary": true}],
+      "realmRoles": ["platform-admin"]
+    }
+  ]
+}

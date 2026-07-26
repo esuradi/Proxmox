@@ -1,0 +1,20 @@
+# Codex project instructions
+
+## Goal
+Build a secure, multi-tenant, API-first public-cloud portal on Proxmox VE.
+
+## Non-negotiable controls
+- Never expose Proxmox credentials or URLs to browser code.
+- Every resource must belong to an organization and project before tenant release.
+- Enforce authorization server-side; UI hiding is not authorization.
+- Use approved templates only.
+- All mutations must be idempotent, queued, audited, and traceable by correlation ID.
+- Verify TLS. Never commit secrets or disable certificate validation in production.
+- Add tests for privilege boundaries and cross-tenant access on every feature.
+- Do not add delete, snapshot restore, console, firewall, or public-IP actions without an approval policy and audit event.
+
+## Stack
+Next.js, FastAPI, PostgreSQL, Redis, Keycloak, Docker Compose initially; Kubernetes later.
+
+## Definition of done
+Code, migrations, tests, API docs, threat-model update, rollback notes, and operator documentation.

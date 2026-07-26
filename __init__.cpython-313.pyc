@@ -1,0 +1,98 @@
+# Proxmox Public Cloud Portal — Phase 1 Starter
+
+A secure starting repository for a self-service portal. The browser talks to a FastAPI control plane; only the control plane talks to Proxmox VE.
+
+## Included
+
+- Next.js portal with Keycloak login
+- FastAPI REST API and OpenAPI documentation
+- Proxmox API-token connector with TLS verification
+- Keycloak realm, roles, and demo administrator
+- PostgreSQL and Redis foundations
+- Docker Compose deployment
+- Proxmox least-privilege service-account helper
+- Basic tests and Codex repository instructions
+
+## Important limitation
+
+This is an MVP scaffold, not yet a production public cloud. Current inventory is cluster-wide and the create endpoint submits a full clone from one approved template. Do not give tenants access until organization/project ownership, quota enforcement, asynchronous task completion, audit records, resource pools, and cross-tenant security tests are implemented.
+
+## 1. Prepare a management VM
+
+Recommended initial lab VM: Debian 13, 4 vCPU, 8 GB RAM, 80 GB disk. Place it on a management network that can reach TCP 8006 on Proxmox. Do not install the portal on a Proxmox node.
+
+```bash
+sudo ./scripts/install-docker.sh
+sudo usermod -aG docker "$USER"
+# Log out and back in after group change.
+```
+
+## 2. Prepare Proxmox
+
+Create an approved cloud-init template first. Run the following helper on a Proxmox node, review the role, and save the one-time token secret:
+
+```bash
+sudo ./scripts/proxmox-create-service-account.sh
+```
+
+Add the template and all portal-managed resources to the `cloud-portal` pool. For a production design, create separate pools or ACL paths per tenant/project and map them in the portal database.
+
+Copy the CA certificate that signed the Proxmox API certificate:
+
+```bash
+mkdir -p secrets
+cp /path/to/proxmox-issuing-ca.pem secrets/proxmox_ca.pem
+```
+
+## 3. Configure
+
+```bash
+./scripts/configure.sh
+nano .env
+```
+
+Set at minimum: API URL, token ID, token secret, node, storage, bridge, and approved template VMID. Replace localhost in public URLs when users access the portal through another hostname.
+
+## 4. Deploy
+
+```bash
+./scripts/deploy.sh
+./scripts/smoke-test.sh
+```
+
+Open:
+
+- Portal: `http://SERVER:3000`
+- API/OpenAPI: `http://SERVER:8000/docs`
+- Keycloak: `http://SERVER:8080`
+
+The imported demo user is `demo-admin`; its temporary password is `ChangeMe-Immediately-123!`. Change or remove it immediately.
+
+## 5. Use Codex
+
+Open this repository in Codex CLI, the Codex app, or the IDE extension. Start with repository-scoped tasks and require tests. Example tasks:
+
+```text
+Read AGENTS.md and README.md. Implement organization and project tables with Alembic migrations. Add tenant membership and ensure every VM record has organization_id and project_id. Add unit and integration tests proving users cannot read another tenant's records. Do not change Proxmox resources yet.
+```
+
+```text
+Implement a Redis-backed worker for Proxmox UPID task polling. The create endpoint must write a provisioning request, enqueue it, wait for clone completion in the worker, apply CPU and memory configuration, record all state transitions, and expose GET /operations/{id}. Include retry limits and idempotency keys.
+```
+
+```text
+Add a catalog table for approved templates and plans. A tenant may request only active catalog entries within its quota. Add platform-admin CRUD and tenant read-only endpoints, validation tests, and audit events.
+```
+
+## Production backlog in order
+
+1. Database migrations and organization/project ownership
+2. Asynchronous operations and idempotency
+3. Tenant-specific Proxmox pools and ACL mapping
+4. Quotas and approved plans/catalog
+5. Immutable audit trail and centralized logging
+6. Approval workflow for privileged actions
+7. Usage collection and chargeback
+8. HA PostgreSQL/Redis, reverse proxy, trusted TLS, backups
+9. Security assessment, penetration test, DR test
+10. Kubernetes deployment and CI/CD

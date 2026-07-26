@@ -1,0 +1,76 @@
+import ssl
+from typing import Any
+
+import httpx
+
+from app.core.config import get_settings
+from app.schemas.vm import VMCreate
+
+
+class ProxmoxClient:
+    def __init__(self) -> None:
+        self.settings = get_settings()
+        if self.settings.proxmox_verify_tls and self.settings.proxmox_ca_cert:
+            verify: bool | ssl.SSLContext = ssl.create_default_context(cafile=self.settings.proxmox_ca_cert)
+        else:
+            verify = self.settings.proxmox_verify_tls
+        self.client = httpx.AsyncClient(
+            base_url=self.settings.proxmox_api_url.rstrip("/"),
+            headers={
+                "Authorization": (
+                    f"PVEAPIToken={self.settings.proxmox_token_id}="
+                    f"{self.settings.proxmox_token_secret}"
+                )
+            },
+            verify=verify,
+            timeout=httpx.Timeout(30, connect=10),
+        )
+
+    async def close(self) -> None:
+        await self.client.aclose()
+
+    async def _request(self, method: str, path: str, **kwargs: Any) -> Any:
+        response = await self.client.request(method, path, **kwargs)
+        response.raise_for_status()
+        return response.json()["data"]
+
+    async def version(self) -> dict[str, Any]:
+        return await self._request("GET", "/version")
+
+    async def list_vms(self) -> list[dict[str, Any]]:
+        resources = await self._request("GET", "/cluster/resources", params={"type": "vm"})
+        return [
+            {
+                "vmid": vm["vmid"],
+                "name": vm.get("name", f"vm-{vm['vmid']}"),
+                "node": vm.get("node"),
+                "status": vm.get("status"),
+                "type": vm.get("type"),
+                "cpu": vm.get("cpu", 0),
+                "maxcpu": vm.get("maxcpu", 0),
+                "mem": vm.get("mem", 0),
+                "maxmem": vm.get("maxmem", 0),
+            }
+            for vm in resources
+        ]
+
+    async def next_vmid(self) -> int:
+        value = await self._request("GET", "/cluster/nextid")
+        return int(value)
+
+    async def create_vm_from_template(self, request: VMCreate) -> tuple[int, str]:
+        s = self.settings
+        vmid = await self.next_vmid()
+        clone_task = await self._request(
+            "POST",
+            f"/nodes/{s.proxmox_default_node}/qemu/{s.proxmox_template_vmid}/clone",
+            data={
+                "newid": vmid,
+                "name": request.name,
+                "full": 1,
+                "storage": s.proxmox_default_storage,
+            },
+        )
+        # Production workflow should wait for clone_task completion before configuring.
+        # This MVP returns the UPID so a worker can continue asynchronously.
+        return vmid, str(clone_task)
